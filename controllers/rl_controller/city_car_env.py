@@ -48,9 +48,11 @@ from logger import EpisodeLogger
 # ── Tunable constants ─────────────────────────────────────────────────────────
 COLLISION_DIST_M   = 0.3    # metres — episode ends if LiDAR reads below this
                              # NOTE: BmwX5 hood reflects LiDAR at ~0.78m; 0.3m avoids false collisions
-LANE_LIMIT_M       = 10.75  # metres — half of road width (21.5m); out_of_lane = off asphalt
+LANE_LIMIT_M       = 9.0    # metres — triggers ~1.75 m before the physical barrier (road half-width=10.75m)
 FRAME_SKIP         = 5      # simulate N physics steps per RL step (160 ms per step @ 32 ms)
 MAX_STEPS          = 5000   # RL steps per episode (800 s); generous enough for a full lap
+STUCK_SPEED_MS     = 0.3    # m/s — below this the car is considered stuck
+STUCK_STEPS        = 15     # consecutive steps below STUCK_SPEED_MS → terminate (2.4 s)
 LIDAR_MAX_M        = 30.0   # normalisation range — SICK LMS 291 in Webots has 30 m max range
 SPEED_MAX          = 20.0   # normalisation range for speed
 STEERING_RANGE     = 0.5    # rad — maps action [-1,1] to [-0.5, 0.5] rad
@@ -127,6 +129,7 @@ class CityCarEnv(gym.Env):
         self._ep_collision   = False
         self._ep_out_lane    = False
         self._ep_success     = False
+        self._stuck_counter  = 0     # consecutive steps with speed < STUCK_SPEED_MS
 
         # ── Logger ───────────────────────────────────────────────────────
         log_dir = os.path.join(
@@ -224,6 +227,7 @@ class CityCarEnv(gym.Env):
         self._ep_collision   = False
         self._ep_out_lane    = False
         self._ep_success     = False
+        self._stuck_counter  = 0
 
         obs = self._get_obs()
         return obs, {}
@@ -240,8 +244,16 @@ class CityCarEnv(gym.Env):
         obs  = self._get_obs()
         info = self._get_reward_info(steering)
 
+        # ── Stuck detection ───────────────────────────────────────────────
+        speed = self._get_speed()
+        if speed < STUCK_SPEED_MS:
+            self._stuck_counter += 1
+        else:
+            self._stuck_counter = 0
+        stuck = self._stuck_counter >= STUCK_STEPS
+
         reward      = self.reward_fn(info)
-        terminated  = info.collision or info.out_of_lane or info.success
+        terminated  = info.collision or info.out_of_lane or info.success or stuck
         truncated   = self.step_count >= MAX_STEPS
 
         # ── Accumulate per-episode stats ──────────────────────────────────
@@ -251,6 +263,7 @@ class CityCarEnv(gym.Env):
         if info.collision:   self._ep_collision = True
         if info.out_of_lane: self._ep_out_lane  = True
         if info.success:     self._ep_success   = True
+        if stuck:            self._ep_out_lane  = True   # log stuck as out_of_lane
 
         self.prev_steering = steering
 
