@@ -63,13 +63,15 @@ NUM_BARRELS        = 8
 # Spawn positions and headings for the vehicle at episode start.
 # Each tuple is (x, y, z, heading_rad).  heading is the Webots rotation
 # around Z axis.  A random one is picked at reset().
+# Spawn poses on the YELLOW CENTRE LINE of each road segment.
+# Coordinates derived from road segment translations in city.wbt.
+# z=0.332 (road surface height, confirmed from Webots).
 SPAWN_POSES = [
-    (-108.69, -102.0, 0.32,  math.pi / 2),
-    (-108.69,  -70.0, 0.32,  math.pi / 2),
-    (-108.69,  -40.0, 0.32,  math.pi / 2),
-    ( -45.0,    7.19, 0.32,  0.0),
-    (  7.19,  -20.0,  0.32, -math.pi / 2),
-    ( -61.19, -90.0,  0.32, -math.pi / 2),
+    (-105.0, -50.0, 0.332,  math.pi / 2),   # west straight, heading north
+    (-105.0, -20.0, 0.332,  math.pi / 2),   # west straight, heading north
+    ( -35.0,  45.0, 0.332,  0.0),            # north straight, heading east
+    (  45.0, -20.0, 0.332, -math.pi / 2),   # east straight, heading south
+    ( -30.0,-105.0, 0.332,  math.pi),        # south straight, heading west
 ]
 
 
