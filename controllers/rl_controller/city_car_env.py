@@ -48,16 +48,16 @@ from logger import EpisodeLogger
 # ── Tunable constants ─────────────────────────────────────────────────────────
 COLLISION_DIST_M   = 0.3    # metres — episode ends if LiDAR reads below this
                              # NOTE: BmwX5 hood reflects LiDAR at ~0.78m; 0.3m avoids false collisions
-LANE_LIMIT_M       = 4.5    # metres — max allowed lateral deviation
-FRAME_SKIP         = 5      # simulate N physics steps per RL step (50 ms per step @ 10 ms)
-MAX_STEPS          = 3000   # RL steps per episode (~150 s with FRAME_SKIP=5)
+LANE_LIMIT_M       = 10.75  # metres — half of road width (21.5m); out_of_lane = off asphalt
+FRAME_SKIP         = 5      # simulate N physics steps per RL step (160 ms per step @ 32 ms)
+MAX_STEPS          = 5000   # RL steps per episode (800 s); generous enough for a full lap
 LIDAR_MAX_M        = 30.0   # normalisation range — SICK LMS 291 in Webots has 30 m max range
 SPEED_MAX          = 20.0   # normalisation range for speed
 STEERING_RANGE     = 0.5    # rad — maps action [-1,1] to [-0.5, 0.5] rad
 THROTTLE_MIN       = 0.0    # rad/s wheel velocity at action=-1 (0 = no reverse; avoids lazy-reverse exploit)
 THROTTLE_MAX       = 30.0   # rad/s wheel velocity at action=+1
 N_LIDAR_RAYS       = 12     # number of frontal rays used in observation
-WAYPOINT_REACH_M   = 8.0    # metres — distance to consider a waypoint reached
+WAYPOINT_REACH_M   = 12.0   # metres — > half road width (10.75m); triggers anywhere on the asphalt
 NUM_BARRELS        = 8
 
 # Spawn positions and headings for the vehicle at episode start.
