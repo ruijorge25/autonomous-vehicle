@@ -212,6 +212,11 @@ class CityCarEnv(gym.Env):
         self._prev_gps       = self.gps.getValues()
         self.wp_index        = self._nearest_waypoint_index(x0, y0)
         self._wp_laps        = 0
+        # Skip the nearest waypoint if the spawn is already within reach distance
+        # (prevents immediate advance to a far waypoint on step 1)
+        _wx, _wy, _ = WAYPOINTS[self.wp_index]
+        if math.hypot(x0 - _wx, y0 - _wy) < WAYPOINT_REACH_M:
+            self.wp_index = (self.wp_index + 1) % len(WAYPOINTS)
         self.total_progress  = 0.0
         self._ep_reward      = 0.0
         self._ep_lateral_sum = 0.0
@@ -329,8 +334,11 @@ class CityCarEnv(gym.Env):
         """
         Compute signed lateral deviation and heading error relative to
         the road at the nearest waypoint.
+        Uses the geometrically nearest waypoint (not the target wp_index) so that
+        lateral is always measured against the current road segment the car is on.
         """
-        wp_x, wp_y, road_heading = WAYPOINTS[self.wp_index]
+        near_i = self._nearest_waypoint_index(x, y)
+        wp_x, wp_y, road_heading = WAYPOINTS[near_i]
 
         # Vector from waypoint to vehicle
         dx = x  - wp_x
