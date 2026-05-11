@@ -1,0 +1,392 @@
+"""
+CityCarEnv — Gymnasium-compatible environment for the Webots City world.
+
+Architecture
+------------
+This class runs *inside* the Webots controller process.  It uses the
+Webots Supervisor API to reset the simulation state (vehicle pose + barrel
+positions) at the start of every episode, then drives the simulation
+forward one timestep at a time via supervisor.step().
+
+Observation space  (Box, shape=(17,), dtype=float32)
+    [0]     lateral_deviation   / 5.0          (clipped to [-1, 1])
+    [1]     heading_error       / π             (clipped to [-1, 1])
+    [2]     speed               / 20.0
+    [3]     prev_steering                       (already in [-1, 1])
+    [4-15]  lidar[0:12]         / 30.0         (frontal subset)
+    [16]    min_lidar           / 30.0
+
+Action space  (Box, shape=(2,), dtype=float32)
+    [0]  steering   ∈ [-1, 1]  → mapped to [-0.5, 0.5] rad
+    [1]  throttle   ∈ [-1, 1]  → mapped to [-5, 30] rad/s wheel velocity
+
+Episode termination
+    • collision  : min frontal LiDAR < COLLISION_DIST_M
+    • out_of_lane: |lateral_deviation| > LANE_LIMIT_M
+    • timeout    : step_count > MAX_STEPS
+    • success    : all waypoints visited (circuit completed)
+"""
+
+import math
+import random
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+
+from reward import RewardInfo, dense_reward, sparse_reward
+from waypoints import WAYPOINTS, BARREL_FIXED_POSITIONS, BARREL_SPAWN_CANDIDATES
+
+# ── Tunable constants ─────────────────────────────────────────────────────────
+COLLISION_DIST_M   = 0.8    # metres — episode ends if LiDAR reads below this
+LANE_LIMIT_M       = 4.5    # metres — max allowed lateral deviation
+MAX_STEPS          = 3000   # steps per episode (~30 s at basicTimeStep=10 ms)
+LIDAR_MAX_M        = 30.0   # normalisation range for LiDAR
+SPEED_MAX          = 20.0   # normalisation range for speed
+STEERING_RANGE     = 0.5    # rad — maps action [-1,1] to [-0.5, 0.5] rad
+THROTTLE_MIN       = -5.0   # rad/s wheel velocity at action=-1
+THROTTLE_MAX       = 30.0   # rad/s wheel velocity at action=+1
+N_LIDAR_RAYS       = 12     # number of frontal rays used in observation
+WAYPOINT_REACH_M   = 8.0    # metres — distance to consider a waypoint reached
+NUM_BARRELS        = 8
+
+# Spawn positions and headings for the vehicle at episode start.
+# Each tuple is (x, y, z, heading_rad).  heading is the Webots rotation
+# around Z axis.  A random one is picked at reset().
+SPAWN_POSES = [
+    (-108.69, -102.0, 0.32,  math.pi / 2),
+    (-108.69,  -70.0, 0.32,  math.pi / 2),
+    (-108.69,  -40.0, 0.32,  math.pi / 2),
+    ( -45.0,    7.19, 0.32,  0.0),
+    (  7.19,  -20.0,  0.32, -math.pi / 2),
+    ( -61.19, -90.0,  0.32, -math.pi / 2),
+]
+
+
+class CityCarEnv(gym.Env):
+    """Gymnasium environment wrapping the Webots City simulation."""
+
+    metadata = {"render_modes": []}
+
+    def __init__(self, supervisor, reward_fn="dense", procedural_obstacles=False):
+        """
+        Parameters
+        ----------
+        supervisor : webots_api.Supervisor
+            The Webots Supervisor instance from the controller entry point.
+        reward_fn : str
+            "dense" or "sparse"
+        procedural_obstacles : bool
+            If True, barrel positions are randomised each episode.
+            If False, default fixed positions from BARREL_FIXED_POSITIONS are used.
+        """
+        super().__init__()
+        self.supervisor = supervisor
+        self.timestep = int(supervisor.getBasicTimeStep())
+        self.reward_fn = dense_reward if reward_fn == "dense" else sparse_reward
+        self.procedural_obstacles = procedural_obstacles
+
+        # ── Webots devices ────────────────────────────────────────────────
+        self._init_devices()
+
+        # ── Gymnasium spaces ──────────────────────────────────────────────
+        obs_low  = np.full(17, -1.0, dtype=np.float32)
+        obs_high = np.full(17,  1.0, dtype=np.float32)
+        self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
+        self.action_space = spaces.Box(
+            low=np.array([-1.0, -1.0], dtype=np.float32),
+            high=np.array([ 1.0,  1.0], dtype=np.float32),
+        )
+
+        # ── Episode state ─────────────────────────────────────────────────
+        self.step_count      = 0
+        self.prev_steering   = 0.0
+        self.prev_pos        = None
+        self.wp_index        = 0       # index of next target waypoint
+        self.total_progress  = 0.0    # cumulative metres along track
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Device initialisation
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _init_devices(self):
+        sv = self.supervisor
+
+        # Actuators
+        self.left_steer   = sv.getDevice("left_steer")
+        self.right_steer  = sv.getDevice("right_steer")
+        self.left_wheel   = sv.getDevice("left_front_wheel")
+        self.right_wheel  = sv.getDevice("right_front_wheel")
+        self.left_wheel.setPosition(float("inf"))
+        self.right_wheel.setPosition(float("inf"))
+
+        # LiDAR (SICK LMS 291 — 180°, 361 rays)
+        self.lidar = sv.getDevice("Sick LMS 291")
+        self.lidar.enable(self.timestep)
+        self.lidar.enablePointCloud()
+
+        # GPS
+        self.gps = sv.getDevice("gps")
+        self.gps.enable(self.timestep)
+
+        # Gyro
+        self.gyro = sv.getDevice("gyro")
+        self.gyro.enable(self.timestep)
+
+        # Supervisor node references
+        self.vehicle_node = sv.getFromDef("VEHICLE")
+        self.barrel_nodes = [sv.getFromDef(f"BARREL_{i}") for i in range(NUM_BARRELS)]
+
+        # GPS history for speed estimation
+        self._prev_gps = None
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Gymnasium API
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
+        if seed is not None:
+            random.seed(seed)
+            np.random.seed(seed)
+
+        # Pick a random spawn pose
+        pose = random.choice(SPAWN_POSES)
+        x0, y0, z0, heading0 = pose
+
+        # Optional small perturbation for robustness experiments
+        x0      += random.uniform(-1.0, 1.0)
+        y0      += random.uniform(-1.0, 1.0)
+        heading0 += random.uniform(-0.1, 0.1)
+
+        # Teleport vehicle
+        trans_field = self.vehicle_node.getField("translation")
+        rot_field   = self.vehicle_node.getField("rotation")
+        trans_field.setSFVec3f([x0, y0, z0])
+        rot_field.setSFRotation([0.0, 0.0, 1.0, heading0])
+        self.vehicle_node.resetPhysics()
+
+        # Position barrels
+        self._reset_barrels()
+
+        # Stop wheels
+        self._apply_action(0.0, 0.0)
+
+        # Advance a few steps to let physics settle
+        for _ in range(5):
+            self.supervisor.step(self.timestep)
+
+        # Reset episode state
+        self.step_count    = 0
+        self.prev_steering = 0.0
+        self._prev_gps     = self.gps.getValues()
+        self.wp_index      = self._nearest_waypoint_index(x0, y0)
+        self.total_progress = 0.0
+
+        obs = self._get_obs()
+        return obs, {}
+
+    def step(self, action):
+        steering = float(np.clip(action[0], -1.0, 1.0))
+        throttle = float(np.clip(action[1], -1.0, 1.0))
+
+        self._apply_action(steering, throttle)
+        self.supervisor.step(self.timestep)
+        self.step_count += 1
+
+        obs  = self._get_obs()
+        info = self._get_reward_info(steering)
+
+        reward      = self.reward_fn(info)
+        terminated  = info.collision or info.out_of_lane or info.success
+        truncated   = self.step_count >= MAX_STEPS
+
+        self.prev_steering = steering
+
+        # Update waypoint progress
+        gps_vals = self.gps.getValues()
+        cx, cy   = gps_vals[0], gps_vals[1]
+        self._advance_waypoint(cx, cy)
+        self._prev_gps = gps_vals
+
+        return obs, reward, terminated, truncated, {}
+
+    def close(self):
+        pass
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Internal helpers
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _apply_action(self, steering_norm, throttle_norm):
+        steer   = steering_norm * STEERING_RANGE
+        vel     = THROTTLE_MIN + (throttle_norm + 1.0) / 2.0 * (THROTTLE_MAX - THROTTLE_MIN)
+        self.left_steer.setPosition(steer)
+        self.right_steer.setPosition(steer)
+        self.left_wheel.setVelocity(vel)
+        self.right_wheel.setVelocity(vel)
+
+    def _get_lidar_frontal(self):
+        """Return N_LIDAR_RAYS values from the central frontal sector."""
+        values = self.lidar.getRangeImage()
+        if not values:
+            return [LIDAR_MAX_M] * N_LIDAR_RAYS
+        n = len(values)
+        centre = n // 2
+        half   = N_LIDAR_RAYS // 2
+        # pick rays symmetrically around the centre
+        step = max(1, (n // 4) // half)
+        indices = [centre + (i - half) * step for i in range(N_LIDAR_RAYS)]
+        rays = []
+        for idx in indices:
+            idx = max(0, min(n - 1, idx))
+            v = values[idx]
+            if v == float("inf") or math.isnan(v):
+                v = LIDAR_MAX_M
+            rays.append(min(v, LIDAR_MAX_M))
+        return rays
+
+    def _nearest_waypoint_index(self, x, y):
+        """Return index of the waypoint closest to (x, y)."""
+        best_i, best_d = 0, float("inf")
+        for i, (wx, wy, _) in enumerate(WAYPOINTS):
+            d = math.hypot(x - wx, y - wy)
+            if d < best_d:
+                best_d, best_i = d, i
+        return best_i
+
+    def _advance_waypoint(self, x, y):
+        """Move wp_index forward if the vehicle has reached the current target."""
+        wx, wy, _ = WAYPOINTS[self.wp_index]
+        if math.hypot(x - wx, y - wy) < WAYPOINT_REACH_M:
+            self.wp_index = (self.wp_index + 1) % len(WAYPOINTS)
+
+    def _compute_lateral_and_heading(self, x, y, vehicle_heading):
+        """
+        Compute signed lateral deviation and heading error relative to
+        the road at the nearest waypoint.
+        """
+        wp_x, wp_y, road_heading = WAYPOINTS[self.wp_index]
+
+        # Vector from waypoint to vehicle
+        dx = x  - wp_x
+        dy = y  - wp_y
+
+        # Perpendicular (right-hand side) of the road direction
+        perp_x = -math.sin(road_heading)
+        perp_y =  math.cos(road_heading)
+        lateral = dx * perp_x + dy * perp_y
+
+        # Heading error (wrap to [-π, π])
+        err = vehicle_heading - road_heading
+        err = (err + math.pi) % (2 * math.pi) - math.pi
+        return lateral, err
+
+    def _get_vehicle_heading(self):
+        """Estimate vehicle heading from Gyro or GPS differential."""
+        gyro_vals = self.gyro.getValues()
+        # gyro gives angular velocity; we need cumulative heading.
+        # Instead, derive heading from GPS displacement if possible.
+        gps = self.gps.getValues()
+        if self._prev_gps is not None:
+            dx = gps[0] - self._prev_gps[0]
+            dy = gps[1] - self._prev_gps[1]
+            if abs(dx) > 1e-4 or abs(dy) > 1e-4:
+                return math.atan2(dy, dx)
+        # Fallback: use the vehicle node's rotation field
+        rot = self.vehicle_node.getField("rotation").getSFRotation()
+        # rot = [ax, ay, az, angle]; vehicle forward is +X, so heading = angle if az>0
+        angle = rot[3]
+        if rot[2] < 0:
+            angle = -angle
+        return angle
+
+    def _get_speed(self):
+        gps = self.gps.getValues()
+        if self._prev_gps is None:
+            return 0.0
+        dx = gps[0] - self._prev_gps[0]
+        dy = gps[1] - self._prev_gps[1]
+        dist = math.hypot(dx, dy)
+        dt = self.timestep / 1000.0
+        return dist / dt if dt > 0 else 0.0
+
+    def _get_obs(self):
+        gps    = self.gps.getValues()
+        x, y   = gps[0], gps[1]
+        speed  = self._get_speed()
+        heading = self._get_vehicle_heading()
+
+        lateral, heading_err = self._compute_lateral_and_heading(x, y, heading)
+        lidar_rays = self._get_lidar_frontal()
+        min_lidar  = min(lidar_rays)
+
+        obs = np.array([
+            np.clip(lateral     / 5.0,        -1.0, 1.0),
+            np.clip(heading_err / math.pi,    -1.0, 1.0),
+            np.clip(speed       / SPEED_MAX,   0.0, 1.0),
+            self.prev_steering,
+            *[np.clip(r / LIDAR_MAX_M, 0.0, 1.0) for r in lidar_rays],
+            np.clip(min_lidar   / LIDAR_MAX_M, 0.0, 1.0),
+        ], dtype=np.float32)
+        return obs
+
+    def _get_reward_info(self, steering):
+        gps  = self.gps.getValues()
+        x, y = gps[0], gps[1]
+        heading = self._get_vehicle_heading()
+
+        lateral, heading_err = self._compute_lateral_and_heading(x, y, heading)
+        lidar_rays = self._get_lidar_frontal()
+        min_lidar  = min(lidar_rays)
+
+        # Progress: distance advanced toward the next waypoint
+        if self._prev_gps is not None:
+            dx = x - self._prev_gps[0]
+            dy = y - self._prev_gps[1]
+            wp_x, wp_y, wh = WAYPOINTS[self.wp_index]
+            road_dx = math.cos(wh)
+            road_dy = math.sin(wh)
+            progress = dx * road_dx + dy * road_dy
+        else:
+            progress = 0.0
+
+        collision   = min_lidar < COLLISION_DIST_M
+        out_of_lane = abs(lateral) > LANE_LIMIT_M
+        # Success: completed a full loop (wp_index wrapped around at least once)
+        # Simple proxy: total_progress > circuit perimeter (~500 m)
+        self.total_progress += max(progress, 0.0)
+        success = self.total_progress > 500.0
+
+        return RewardInfo(
+            progress_m        = progress,
+            lateral_deviation = lateral,
+            heading_error     = heading_err,
+            min_lidar         = min_lidar,
+            steering_delta    = abs(steering - self.prev_steering),
+            collision         = collision,
+            out_of_lane       = out_of_lane,
+            success           = success,
+        )
+
+    def _reset_barrels(self):
+        """Reposition all barrels — fixed or procedurally generated."""
+        if self.procedural_obstacles:
+            candidates = list(BARREL_SPAWN_CANDIDATES)
+            random.shuffle(candidates)
+            positions = candidates[:NUM_BARRELS]
+            # pad with far-away positions if not enough candidates
+            while len(positions) < NUM_BARRELS:
+                positions.append((-200.0, -200.0))
+        else:
+            positions = [(p[0], p[1]) for p in BARREL_FIXED_POSITIONS]
+
+        for i, node in enumerate(self.barrel_nodes):
+            if node is None:
+                continue
+            bx, by = positions[i]
+            # add small jitter for procedural mode
+            if self.procedural_obstacles:
+                bx += random.uniform(-1.5, 1.5)
+                by += random.uniform(-1.5, 1.5)
+            node.getField("translation").setSFVec3f([bx, by, 0.6])
+            node.resetPhysics()
