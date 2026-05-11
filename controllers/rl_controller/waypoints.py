@@ -88,7 +88,7 @@ BARREL_SPAWN_CANDIDATES = [
 BARREL_FIXED_POSITIONS = [
     (-105.0, -30.0, 0.6),   # west straight
     (-105.0, -55.0, 0.6),   # west straight
-    ( -35.0,  45.0, 0.6),   # north straight
+    ( -20.0,  45.0, 0.6),   # north straight (was -35 which overlapped with old spawn)
     (   5.0,  45.0, 0.6),   # north straight
     (  45.0, -15.0, 0.6),   # east straight
     (  45.0, -45.0, 0.6),   # east straight

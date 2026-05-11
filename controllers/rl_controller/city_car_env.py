@@ -68,11 +68,13 @@ NUM_BARRELS        = 8
 # Spawn poses on the YELLOW CENTRE LINE of each road segment.
 # Coordinates derived from road segment translations in city.wbt.
 # z=0.332 (road surface height, confirmed from Webots).
+BARREL_COLLISION_M = 1.5   # geometric barrel collision radius (barrel r=0.4 + car half-width ~1.0 + margin)
+
 SPAWN_POSES = [
     (-105.0, -50.0, 0.332,  math.pi / 2),   # west straight, heading north
     (-105.0, -20.0, 0.332,  math.pi / 2),   # west straight, heading north
-    ( -35.0,  45.0, 0.332,  0.0),            # north straight, heading east
-    (  45.0, -20.0, 0.332, -math.pi / 2),   # east straight, heading south
+    ( -50.0,  45.0, 0.332,  0.0),            # north straight, heading east (shifted from -35 to avoid barrel)
+    (  45.0, -35.0, 0.332, -math.pi / 2),   # east straight, heading south
     ( -30.0,-105.0, 0.332,  math.pi),        # south straight, heading west
 ]
 
@@ -130,6 +132,7 @@ class CityCarEnv(gym.Env):
         self._ep_out_lane    = False
         self._ep_success     = False
         self._stuck_counter  = 0     # consecutive steps with speed < STUCK_SPEED_MS
+        self._barrel_positions = []  # [(bx, by)] updated each reset by _reset_barrels
 
         # ── Logger ───────────────────────────────────────────────────────
         log_dir = os.path.join(
@@ -479,7 +482,14 @@ class CityCarEnv(gym.Env):
         else:
             progress = 0.0
 
-        collision   = min_lidar < COLLISION_DIST_M
+        # LiDAR-based collision (walls, static objects)
+        lidar_collision = min_lidar < COLLISION_DIST_M
+        # Geometric barrel collision — reliable even if barrel moved after impact
+        barrel_collision = any(
+            math.hypot(x - bx, y - by) < BARREL_COLLISION_M
+            for bx, by in self._barrel_positions
+        )
+        collision   = lidar_collision or barrel_collision
         out_of_lane = abs(lateral) > LANE_LIMIT_M
         # Success: completed a full loop (wp_index wrapped around at least once)
         # Simple proxy: total_progress > circuit perimeter (~500 m)
@@ -498,24 +508,28 @@ class CityCarEnv(gym.Env):
         )
 
     def _reset_barrels(self):
-        """Reposition all barrels — fixed or procedurally generated."""
+        """Reposition all barrels — fixed or procedurally generated.
+        Always resets rotation to upright so fallen barrels don't persist.
+        Stores barrel centres in self._barrel_positions for geometric collision.
+        """
         if self.procedural_obstacles:
             candidates = list(BARREL_SPAWN_CANDIDATES)
             random.shuffle(candidates)
             positions = candidates[:NUM_BARRELS]
-            # pad with far-away positions if not enough candidates
             while len(positions) < NUM_BARRELS:
                 positions.append((-200.0, -200.0))
         else:
             positions = [(p[0], p[1]) for p in BARREL_FIXED_POSITIONS]
 
+        self._barrel_positions = []
         for i, node in enumerate(self.barrel_nodes):
             if node is None:
                 continue
             bx, by = positions[i]
-            # add small jitter for procedural mode
             if self.procedural_obstacles:
                 bx += random.uniform(-1.5, 1.5)
                 by += random.uniform(-1.5, 1.5)
             node.getField("translation").setSFVec3f([bx, by, 0.6])
+            node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, 0.0])  # reset upright
             node.resetPhysics()
+            self._barrel_positions.append((bx, by))
