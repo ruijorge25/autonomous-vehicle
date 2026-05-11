@@ -86,20 +86,23 @@ BARREL_SPAWN_CANDIDATES = [
 
 # Default (fixed) barrel positions — placed on the yellow centre line of each road.
 BARREL_FIXED_POSITIONS = [
-    # ── On yellow centre line (1 per straight, 2 per long straight) ──────
-    (-105.0, -30.0, 0.6),   # west straight centre
-    (-105.0, -55.0, 0.6),   # west straight centre
-    ( -20.0,  45.0, 0.6),   # north straight centre
-    (   5.0,  45.0, 0.6),   # north straight centre
-    (  45.0, -15.0, 0.6),   # east straight centre
-    (  45.0, -45.0, 0.6),   # east straight centre
-    ( -20.0,-105.0, 0.6),   # south straight centre
-    ( -55.0,-105.0, 0.6),   # south straight centre
-    # ── Off-centre (4-6 m from yellow line) — slalom + curve pressure ────
-    (-101.0,  -8.0, 0.6),   # west straight, 4 m east of centre, NW curve approach
-    (-109.0, -42.0, 0.6),   # west straight, 4 m west of centre, slalom between w-centre barrels
-    ( -52.0,  41.0, 0.6),   # north straight, 4 m south of centre, NW curve exit
-    (  -2.0,  50.0, 0.6),   # north straight, 5 m north of centre, NE curve approach
-    (  41.0, -30.0, 0.6),   # east straight,  4 m west of centre, slalom with centre barrel
-    ( -40.0,-101.0, 0.6),   # south straight, 4 m north of centre, slalom with centre barrel
+    # ── West straight (x=−105, y: −64.5→4.5, heading north) ─────────────
+    (-105.0, -12.0, 0.6),   # B0:  upper, ON centre line
+    (-110.0, -45.0, 0.6),   # B1:  lower-mid, 5 m west  (slalom A)
+    (-100.0, -60.0, 0.6),   # B2:  near SW end, 5 m east (slalom B)
+    # ── North straight (y=45, x: −64.5→4.5, heading east) ───────────────
+    ( -38.0,  45.0, 0.6),   # B3:  west portion, ON centre line
+    (   0.0,  50.0, 0.6),   # B4:  east portion, 5 m north (slalom)
+    # ── East straight (x=45, y: 4.5→−64.5, heading south) ───────────────
+    (  45.0,  -8.0, 0.6),   # B5:  upper, ON centre line
+    (  50.0, -52.0, 0.6),   # B6:  lower, 5 m east (slalom A)
+    (  40.0, -28.0, 0.6),   # B7:  mid,   5 m west (slalom B)
+    # ── South straight (y=−105, x: 4.5→−64.5, heading west) ─────────────
+    (  -8.0,-105.0, 0.6),   # B8:  east portion, ON centre line
+    ( -55.0,-110.0, 0.6),   # B9:  west portion, 5 m south (slalom)
+    # ── Curves — blocking the apex, forces correct racing line ───────────
+    ( -89.0,  30.0, 0.6),   # B10: NW curve inside apex (dist≈35 m from NW centre)
+    (  30.0,  30.0, 0.6),   # B11: NE curve inside apex
+    (  30.0, -89.0, 0.6),   # B12: SE curve inside apex
+    ( -89.0, -89.0, 0.6),   # B13: SW curve inside apex
 ]
