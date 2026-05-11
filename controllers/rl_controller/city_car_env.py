@@ -332,24 +332,64 @@ class CityCarEnv(gym.Env):
 
     def _compute_lateral_and_heading(self, x, y, vehicle_heading):
         """
-        Compute signed lateral deviation and heading error relative to
-        the road at the nearest waypoint.
-        Uses the geometrically nearest waypoint (not the target wp_index) so that
-        lateral is always measured against the current road segment the car is on.
+        Compute signed lateral deviation and heading error using exact circuit
+        geometry (4 straights + 4 curves), NOT waypoint midpoints.
+
+        Road layout (yellow centre line, clockwise in XY plane):
+          West  straight: x = -105,  y ∈ [-64.5,  4.5],  heading =  π/2
+          North straight: y =   45,  x ∈ [-64.5,  4.5],  heading =  0
+          East  straight: x =   45,  y ∈ [-64.5,  4.5],  heading = -π/2
+          South straight: y = -105,  x ∈ [-64.5,  4.5],  heading =  π
+          NW curve: centre (-64.5,  4.5) R=40.5  (active when x≤-64.5 & y≥ 4.5)
+          NE curve: centre ( 4.5,   4.5) R=40.5  (active when x≥ 4.5  & y≥ 4.5)
+          SE curve: centre ( 4.5, -64.5) R=40.5  (active when x≥ 4.5  & y≤-64.5)
+          SW curve: centre (-64.5,-64.5) R=40.5  (active when x≤-64.5 & y≤-64.5)
         """
-        near_i = self._nearest_waypoint_index(x, y)
-        wp_x, wp_y, road_heading = WAYPOINTS[near_i]
+        _R  =  40.5   # curve radius
+        _LO = -64.5   # junction low  coordinate
+        _HI =   4.5   # junction high coordinate
 
-        # Vector from waypoint to vehicle
-        dx = x  - wp_x
-        dy = y  - wp_y
+        # Each entry: (abs_lat, signed_lat, road_heading)
+        candidates = []
 
-        # Perpendicular (right-hand side) of the road direction
-        perp_x = -math.sin(road_heading)
-        perp_y =  math.cos(road_heading)
-        lateral = dx * perp_x + dy * perp_y
+        # ── Straight segments ─────────────────────────────────────────────
+        if _LO <= y <= _HI:                          # west straight
+            lat = x - (-105.0)
+            candidates.append((abs(lat), lat,  math.pi / 2))
+        if _LO <= x <= _HI:                          # north straight
+            lat = y - 45.0
+            candidates.append((abs(lat), lat,  0.0))
+        if _LO <= y <= _HI:                          # east straight
+            lat = x - 45.0
+            candidates.append((abs(lat), lat, -math.pi / 2))
+        if _LO <= x <= _HI:                          # south straight
+            lat = y - (-105.0)
+            candidates.append((abs(lat), lat,  math.pi))
 
-        # Heading error (wrap to [-π, π])
+        # ── Curve segments ────────────────────────────────────────────────
+        for cx, cy, in_quad in (
+            (-64.5,   4.5, x <= -64.5 and y >=   4.5),   # NW
+            (  4.5,   4.5, x >=   4.5 and y >=   4.5),   # NE
+            (  4.5, -64.5, x >=   4.5 and y <= -64.5),   # SE
+            (-64.5, -64.5, x <= -64.5 and y <= -64.5),   # SW
+        ):
+            if in_quad:
+                d   = math.hypot(x - cx, y - cy)
+                lat = d - _R
+                # Clockwise tangent heading: theta - π/2
+                rh  = math.atan2(y - cy, x - cx) - math.pi / 2
+                rh  = (rh + math.pi) % (2 * math.pi) - math.pi
+                candidates.append((abs(lat), lat, rh))
+
+        if candidates:
+            _, lateral, road_heading = min(candidates, key=lambda c: c[0])
+        else:
+            # Fallback (car deep inside circuit, should not happen in training)
+            near_i = self._nearest_waypoint_index(x, y)
+            wp_x, wp_y, road_heading = WAYPOINTS[near_i]
+            dx = x - wp_x;  dy = y - wp_y
+            lateral = dx * (-math.sin(road_heading)) + dy * math.cos(road_heading)
+
         err = vehicle_heading - road_heading
         err = (err + math.pi) % (2 * math.pi) - math.pi
         return lateral, err
