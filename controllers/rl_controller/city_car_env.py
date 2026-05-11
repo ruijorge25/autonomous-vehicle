@@ -25,7 +25,7 @@ Episode termination
     • collision  : min frontal LiDAR < COLLISION_DIST_M
     • out_of_lane: |lateral_deviation| > LANE_LIMIT_M
     • timeout    : step_count > MAX_STEPS
-    • success    : all waypoints visited (circuit completed)
+    • success    : wp_index completes one full lap (wraps around all waypoints)
 """
 
 import math
@@ -48,11 +48,12 @@ from logger import EpisodeLogger
 # ── Tunable constants ─────────────────────────────────────────────────────────
 COLLISION_DIST_M   = 0.8    # metres — episode ends if LiDAR reads below this
 LANE_LIMIT_M       = 4.5    # metres — max allowed lateral deviation
-MAX_STEPS          = 3000   # steps per episode (~30 s at basicTimeStep=10 ms)
-LIDAR_MAX_M        = 30.0   # normalisation range for LiDAR
+FRAME_SKIP         = 5      # simulate N physics steps per RL step (50 ms per step @ 10 ms)
+MAX_STEPS          = 3000   # RL steps per episode (~150 s with FRAME_SKIP=5)
+LIDAR_MAX_M        = 30.0   # normalisation range — SICK LMS 291 in Webots has 30 m max range
 SPEED_MAX          = 20.0   # normalisation range for speed
 STEERING_RANGE     = 0.5    # rad — maps action [-1,1] to [-0.5, 0.5] rad
-THROTTLE_MIN       = -5.0   # rad/s wheel velocity at action=-1
+THROTTLE_MIN       = 0.0    # rad/s wheel velocity at action=-1 (0 = no reverse; avoids lazy-reverse exploit)
 THROTTLE_MAX       = 30.0   # rad/s wheel velocity at action=+1
 N_LIDAR_RAYS       = 12     # number of frontal rays used in observation
 WAYPOINT_REACH_M   = 8.0    # metres — distance to consider a waypoint reached
@@ -112,6 +113,7 @@ class CityCarEnv(gym.Env):
         self.prev_steering   = 0.0
         self.prev_pos        = None
         self.wp_index        = 0       # index of next target waypoint
+        self._wp_laps        = 0       # incremented each time wp_index wraps around
         self.total_progress  = 0.0    # cumulative metres along track
         self.episode_num     = 0
 
@@ -206,6 +208,7 @@ class CityCarEnv(gym.Env):
         self.prev_steering   = 0.0
         self._prev_gps       = self.gps.getValues()
         self.wp_index        = self._nearest_waypoint_index(x0, y0)
+        self._wp_laps        = 0
         self.total_progress  = 0.0
         self._ep_reward      = 0.0
         self._ep_lateral_sum = 0.0
@@ -222,7 +225,8 @@ class CityCarEnv(gym.Env):
         throttle = float(np.clip(action[1], -1.0, 1.0))
 
         self._apply_action(steering, throttle)
-        self.supervisor.step(self.timestep)
+        for _ in range(FRAME_SKIP):
+            self.supervisor.step(self.timestep)
         self.step_count += 1
 
         obs  = self._get_obs()
@@ -313,7 +317,10 @@ class CityCarEnv(gym.Env):
         """Move wp_index forward if the vehicle has reached the current target."""
         wx, wy, _ = WAYPOINTS[self.wp_index]
         if math.hypot(x - wx, y - wy) < WAYPOINT_REACH_M:
-            self.wp_index = (self.wp_index + 1) % len(WAYPOINTS)
+            next_idx = (self.wp_index + 1) % len(WAYPOINTS)
+            if next_idx == 0:  # wp_index wrapped — full lap completed
+                self._wp_laps += 1
+            self.wp_index = next_idx
 
     def _compute_lateral_and_heading(self, x, y, vehicle_heading):
         """
@@ -413,7 +420,7 @@ class CityCarEnv(gym.Env):
         # Success: completed a full loop (wp_index wrapped around at least once)
         # Simple proxy: total_progress > circuit perimeter (~500 m)
         self.total_progress += max(progress, 0.0)
-        success = self.total_progress > 500.0
+        success = self._wp_laps >= 1  # true only after visiting every waypoint once
 
         return RewardInfo(
             progress_m        = progress,
