@@ -33,8 +33,8 @@ class RewardInfo:
 
 # ── Weights (tune these during experiments) ──────────────────────────────────
 W_PROGRESS    =  1.0
-W_HEADING     =  0.5
-W_LATERAL     =  0.3
+W_HEADING     =  1.5   # increased: agent must align with road on curves
+W_LATERAL     =  0.5   # increased: discourage drifting off centre
 W_OBSTACLE    =  0.5   # penalty when closer than OBSTACLE_THRESHOLD_M
 W_SMOOTH      =  0.1
 OBSTACLE_THRESHOLD_M = 3.0
