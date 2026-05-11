@@ -369,7 +369,7 @@ class CityCarEnv(gym.Env):
         dx = gps[0] - self._prev_gps[0]
         dy = gps[1] - self._prev_gps[1]
         dist = math.hypot(dx, dy)
-        dt = self.timestep / 1000.0
+        dt = (self.timestep * FRAME_SKIP) / 1000.0  # total elapsed time per RL step
         return dist / dt if dt > 0 else 0.0
 
     def _get_obs(self):
