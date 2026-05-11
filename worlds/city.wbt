@@ -53,7 +53,7 @@ WorldInfo {
   ]
   title "City"
   ERP 0.6
-  basicTimeStep 10
+  basicTimeStep 32
   lineScale 1
   contactProperties [
     ContactProperties {
