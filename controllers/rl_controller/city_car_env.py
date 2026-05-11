@@ -46,7 +46,8 @@ if _UTILS_DIR not in sys.path:
 from logger import EpisodeLogger
 
 # ── Tunable constants ─────────────────────────────────────────────────────────
-COLLISION_DIST_M   = 0.8    # metres — episode ends if LiDAR reads below this
+COLLISION_DIST_M   = 0.3    # metres — episode ends if LiDAR reads below this
+                             # NOTE: BmwX5 hood reflects LiDAR at ~0.78m; 0.3m avoids false collisions
 LANE_LIMIT_M       = 4.5    # metres — max allowed lateral deviation
 FRAME_SKIP         = 5      # simulate N physics steps per RL step (50 ms per step @ 10 ms)
 MAX_STEPS          = 3000   # RL steps per episode (~150 s with FRAME_SKIP=5)
