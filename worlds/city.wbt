@@ -1456,6 +1456,84 @@ DEF BARREL_7 OilBarrel {
     }
   }
 }
+DEF BARREL_8 OilBarrel {
+  translation -101.0 -8.0 0.6
+  rotation 0 0 1 0
+  name "oil barrel(8)"
+  height 1.2
+  radius 0.4
+  physics Physics {
+    density -1
+    mass 10000
+    damping Damping {
+    }
+  }
+}
+DEF BARREL_9 OilBarrel {
+  translation -109.0 -42.0 0.6
+  rotation 0 0 1 0
+  name "oil barrel(9)"
+  height 1.2
+  radius 0.4
+  physics Physics {
+    density -1
+    mass 10000
+    damping Damping {
+    }
+  }
+}
+DEF BARREL_10 OilBarrel {
+  translation -52.0 41.0 0.6
+  rotation 0 0 1 0
+  name "oil barrel(10)"
+  height 1.2
+  radius 0.4
+  physics Physics {
+    density -1
+    mass 10000
+    damping Damping {
+    }
+  }
+}
+DEF BARREL_11 OilBarrel {
+  translation -2.0 50.0 0.6
+  rotation 0 0 1 0
+  name "oil barrel(11)"
+  height 1.2
+  radius 0.4
+  physics Physics {
+    density -1
+    mass 10000
+    damping Damping {
+    }
+  }
+}
+DEF BARREL_12 OilBarrel {
+  translation 41.0 -30.0 0.6
+  rotation 0 0 1 0
+  name "oil barrel(12)"
+  height 1.2
+  radius 0.4
+  physics Physics {
+    density -1
+    mass 10000
+    damping Damping {
+    }
+  }
+}
+DEF BARREL_13 OilBarrel {
+  translation -40.0 -101.0 0.6
+  rotation 0 0 1 0
+  name "oil barrel(13)"
+  height 1.2
+  radius 0.4
+  physics Physics {
+    density -1
+    mass 10000
+    damping Damping {
+    }
+  }
+}
 Crossroad {
   translation -4.5001488 105 0
   id "18"

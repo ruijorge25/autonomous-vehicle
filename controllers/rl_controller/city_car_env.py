@@ -60,7 +60,7 @@ THROTTLE_MIN       = 0.0    # rad/s wheel velocity at action=-1 (0 = no reverse;
 THROTTLE_MAX       = 30.0   # rad/s wheel velocity at action=+1
 N_LIDAR_RAYS       = 12     # number of frontal rays used in observation
 WAYPOINT_REACH_M   = 12.0   # metres — > half road width (10.75m); triggers anywhere on the asphalt
-NUM_BARRELS        = 8
+NUM_BARRELS        = 14
 
 # Spawn positions and headings for the vehicle at episode start.
 # Each tuple is (x, y, z, heading_rad).  heading is the Webots rotation

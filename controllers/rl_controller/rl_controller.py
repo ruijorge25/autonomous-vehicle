@@ -27,7 +27,7 @@ from controller import Supervisor
 
 # ── Stable-Baselines3 ─────────────────────────────────────────────────────────
 from stable_baselines3 import PPO, SAC
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 
 # ── Project modules ───────────────────────────────────────────────────────────
 from city_car_env import CityCarEnv
@@ -53,6 +53,39 @@ LOG_DIR   = os.path.join(CONTROLLER_DIR, "..", "..", "logs", RUN_NAME)
 MODEL_DIR = os.path.join(CONTROLLER_DIR, "..", "..", "logs", "models")
 os.makedirs(LOG_DIR,   exist_ok=True)
 os.makedirs(MODEL_DIR, exist_ok=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Best-model callback
+# ─────────────────────────────────────────────────────────────────────────────
+
+class BestModelCallback(BaseCallback):
+    """
+    Saves the model whenever the mean episode reward over the last N episodes
+    improves.  Works with Webots (no separate eval env needed).
+    """
+    def __init__(self, save_path: str, name_prefix: str, window: int = 20, verbose: int = 1):
+        super().__init__(verbose)
+        self.save_path   = save_path
+        self.name_prefix = name_prefix
+        self.window      = window
+        self.best_mean   = float("-inf")
+        self._ep_rewards = []
+
+    def _on_step(self) -> bool:
+        # SB3 stores completed episode info in self.locals["infos"]
+        for info in self.locals.get("infos", []):
+            if "episode" in info:
+                self._ep_rewards.append(info["episode"]["r"])
+        if len(self._ep_rewards) >= self.window:
+            mean_r = sum(self._ep_rewards[-self.window:]) / self.window
+            if mean_r > self.best_mean:
+                self.best_mean = mean_r
+                path = os.path.join(self.save_path, f"{self.name_prefix}_best")
+                self.model.save(path)
+                if self.verbose:
+                    print(f"[BestModel] New best mean reward: {mean_r:.1f} → saved to {path}.zip")
+        return True
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
@@ -104,13 +137,20 @@ def main():
         name_prefix = RUN_NAME,
     )
 
+    best_cb = BestModelCallback(
+        save_path   = MODEL_DIR,
+        name_prefix = RUN_NAME,
+        window      = 20,
+        verbose     = 1,
+    )
+
     print(f"\n[rl_controller] Starting training: {RUN_NAME}")
     print(f"  timesteps : {CONFIG['total_timesteps']}")
     print(f"  logs      : {LOG_DIR}\n")
 
     model.learn(
         total_timesteps = CONFIG["total_timesteps"],
-        callback        = checkpoint_cb,
+        callback        = [checkpoint_cb, best_cb],
         progress_bar    = False,
     )
 

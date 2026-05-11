@@ -86,12 +86,20 @@ BARREL_SPAWN_CANDIDATES = [
 
 # Default (fixed) barrel positions — placed on the yellow centre line of each road.
 BARREL_FIXED_POSITIONS = [
-    (-105.0, -30.0, 0.6),   # west straight
-    (-105.0, -55.0, 0.6),   # west straight
-    ( -20.0,  45.0, 0.6),   # north straight (was -35 which overlapped with old spawn)
-    (   5.0,  45.0, 0.6),   # north straight
-    (  45.0, -15.0, 0.6),   # east straight
-    (  45.0, -45.0, 0.6),   # east straight
-    ( -20.0,-105.0, 0.6),   # south straight
-    ( -55.0,-105.0, 0.6),   # south straight
+    # ── On yellow centre line (1 per straight, 2 per long straight) ──────
+    (-105.0, -30.0, 0.6),   # west straight centre
+    (-105.0, -55.0, 0.6),   # west straight centre
+    ( -20.0,  45.0, 0.6),   # north straight centre
+    (   5.0,  45.0, 0.6),   # north straight centre
+    (  45.0, -15.0, 0.6),   # east straight centre
+    (  45.0, -45.0, 0.6),   # east straight centre
+    ( -20.0,-105.0, 0.6),   # south straight centre
+    ( -55.0,-105.0, 0.6),   # south straight centre
+    # ── Off-centre (4-6 m from yellow line) — slalom + curve pressure ────
+    (-101.0,  -8.0, 0.6),   # west straight, 4 m east of centre, NW curve approach
+    (-109.0, -42.0, 0.6),   # west straight, 4 m west of centre, slalom between w-centre barrels
+    ( -52.0,  41.0, 0.6),   # north straight, 4 m south of centre, NW curve exit
+    (  -2.0,  50.0, 0.6),   # north straight, 5 m north of centre, NE curve approach
+    (  41.0, -30.0, 0.6),   # east straight,  4 m west of centre, slalom with centre barrel
+    ( -40.0,-101.0, 0.6),   # south straight, 4 m north of centre, slalom with centre barrel
 ]
