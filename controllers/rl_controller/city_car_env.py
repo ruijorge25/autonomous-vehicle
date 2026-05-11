@@ -8,13 +8,14 @@ Webots Supervisor API to reset the simulation state (vehicle pose + barrel
 positions) at the start of every episode, then drives the simulation
 forward one timestep at a time via supervisor.step().
 
-Observation space  (Box, shape=(17,), dtype=float32)
+Observation space  (Box, shape=(18,), dtype=float32)
     [0]     lateral_deviation   / 5.0          (clipped to [-1, 1])
     [1]     heading_error       / π             (clipped to [-1, 1])
     [2]     speed               / 20.0
     [3]     prev_steering                       (already in [-1, 1])
     [4-15]  lidar[0:12]         / 30.0         (frontal subset)
     [16]    min_lidar           / 30.0
+    [17]    progress_norm       = total_progress / 500.0  (clipped to [0, 1])
 
 Action space  (Box, shape=(2,), dtype=float32)
     [0]  steering   ∈ [-1, 1]  → mapped to [-0.5, 0.5] rad
@@ -29,12 +30,20 @@ Episode termination
 
 import math
 import random
+import os
+import sys
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
 from reward import RewardInfo, dense_reward, sparse_reward
 from waypoints import WAYPOINTS, BARREL_FIXED_POSITIONS, BARREL_SPAWN_CANDIDATES
+
+# Logger lives in utils/ — add it to path
+_UTILS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "utils")
+if _UTILS_DIR not in sys.path:
+    sys.path.insert(0, _UTILS_DIR)
+from logger import EpisodeLogger
 
 # ── Tunable constants ─────────────────────────────────────────────────────────
 COLLISION_DIST_M   = 0.8    # metres — episode ends if LiDAR reads below this
@@ -67,7 +76,7 @@ class CityCarEnv(gym.Env):
 
     metadata = {"render_modes": []}
 
-    def __init__(self, supervisor, reward_fn="dense", procedural_obstacles=False):
+    def __init__(self, supervisor, reward_fn="dense", procedural_obstacles=False, run_name="default"):
         """
         Parameters
         ----------
@@ -84,13 +93,14 @@ class CityCarEnv(gym.Env):
         self.timestep = int(supervisor.getBasicTimeStep())
         self.reward_fn = dense_reward if reward_fn == "dense" else sparse_reward
         self.procedural_obstacles = procedural_obstacles
+        self.run_name = run_name
 
         # ── Webots devices ────────────────────────────────────────────────
         self._init_devices()
 
         # ── Gymnasium spaces ──────────────────────────────────────────────
-        obs_low  = np.full(17, -1.0, dtype=np.float32)
-        obs_high = np.full(17,  1.0, dtype=np.float32)
+        obs_low  = np.full(18, -1.0, dtype=np.float32)
+        obs_high = np.full(18,  1.0, dtype=np.float32)
         self.observation_space = spaces.Box(obs_low, obs_high, dtype=np.float32)
         self.action_space = spaces.Box(
             low=np.array([-1.0, -1.0], dtype=np.float32),
@@ -103,6 +113,22 @@ class CityCarEnv(gym.Env):
         self.prev_pos        = None
         self.wp_index        = 0       # index of next target waypoint
         self.total_progress  = 0.0    # cumulative metres along track
+        self.episode_num     = 0
+
+        # ── Per-episode accumulators (for logger) ─────────────────────────
+        self._ep_reward      = 0.0
+        self._ep_lateral_sum = 0.0
+        self._ep_lidar_min   = float("inf")
+        self._ep_collision   = False
+        self._ep_out_lane    = False
+        self._ep_success     = False
+
+        # ── Logger ───────────────────────────────────────────────────────
+        log_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", "..", "logs"
+        )
+        run_name = getattr(self, "run_name", "default")
+        self.logger = EpisodeLogger(run_name, log_dir=log_dir)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Device initialisation
@@ -176,11 +202,17 @@ class CityCarEnv(gym.Env):
             self.supervisor.step(self.timestep)
 
         # Reset episode state
-        self.step_count    = 0
-        self.prev_steering = 0.0
-        self._prev_gps     = self.gps.getValues()
-        self.wp_index      = self._nearest_waypoint_index(x0, y0)
-        self.total_progress = 0.0
+        self.step_count      = 0
+        self.prev_steering   = 0.0
+        self._prev_gps       = self.gps.getValues()
+        self.wp_index        = self._nearest_waypoint_index(x0, y0)
+        self.total_progress  = 0.0
+        self._ep_reward      = 0.0
+        self._ep_lateral_sum = 0.0
+        self._ep_lidar_min   = float("inf")
+        self._ep_collision   = False
+        self._ep_out_lane    = False
+        self._ep_success     = False
 
         obs = self._get_obs()
         return obs, {}
@@ -200,6 +232,14 @@ class CityCarEnv(gym.Env):
         terminated  = info.collision or info.out_of_lane or info.success
         truncated   = self.step_count >= MAX_STEPS
 
+        # ── Accumulate per-episode stats ──────────────────────────────────
+        self._ep_reward      += reward
+        self._ep_lateral_sum += abs(info.lateral_deviation)
+        self._ep_lidar_min    = min(self._ep_lidar_min, info.min_lidar)
+        if info.collision:   self._ep_collision = True
+        if info.out_of_lane: self._ep_out_lane  = True
+        if info.success:     self._ep_success   = True
+
         self.prev_steering = steering
 
         # Update waypoint progress
@@ -207,6 +247,21 @@ class CityCarEnv(gym.Env):
         cx, cy   = gps_vals[0], gps_vals[1]
         self._advance_waypoint(cx, cy)
         self._prev_gps = gps_vals
+
+        # ── Log episode when it ends ──────────────────────────────────────
+        if terminated or truncated:
+            self.episode_num += 1
+            avg_lat = self._ep_lateral_sum / max(self.step_count, 1)
+            self.logger.log(
+                episode               = self.episode_num,
+                total_reward          = self._ep_reward,
+                steps                 = self.step_count,
+                success               = self._ep_success,
+                collision             = self._ep_collision,
+                out_of_lane           = self._ep_out_lane,
+                avg_lateral_deviation = avg_lat,
+                min_lidar_min         = self._ep_lidar_min,
+            )
 
         return obs, reward, terminated, truncated, {}
 
@@ -320,13 +375,16 @@ class CityCarEnv(gym.Env):
         lidar_rays = self._get_lidar_frontal()
         min_lidar  = min(lidar_rays)
 
+        progress_norm = np.clip(self.total_progress / 500.0, 0.0, 1.0)
+
         obs = np.array([
-            np.clip(lateral     / 5.0,        -1.0, 1.0),
-            np.clip(heading_err / math.pi,    -1.0, 1.0),
-            np.clip(speed       / SPEED_MAX,   0.0, 1.0),
+            np.clip(lateral       / 5.0,        -1.0, 1.0),
+            np.clip(heading_err   / math.pi,    -1.0, 1.0),
+            np.clip(speed         / SPEED_MAX,   0.0, 1.0),
             self.prev_steering,
             *[np.clip(r / LIDAR_MAX_M, 0.0, 1.0) for r in lidar_rays],
-            np.clip(min_lidar   / LIDAR_MAX_M, 0.0, 1.0),
+            np.clip(min_lidar     / LIDAR_MAX_M, 0.0, 1.0),
+            float(progress_norm),
         ], dtype=np.float32)
         return obs
 

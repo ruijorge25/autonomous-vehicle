@@ -95,20 +95,37 @@ WAYPOINTS = [
     (-108.69, -112.0,  math.pi / 2),
 ]
 
-# Positions where barrels may be spawned (centre of right lane segments)
+# Positions where barrels may be spawned (centre of right lane segments).
 # Used by the procedural generation in the env reset.
+# Spread across all straights of the circuit for good diversity.
 BARREL_SPAWN_CANDIDATES = [
-    (-108.69, -70.0),
-    (-108.69, -50.0),
-    (-108.69, -30.0),
-    (-108.69, -10.0),
+    # West straight (going north)
+    (-108.69, -110.0),
+    (-108.69,  -95.0),
+    (-108.69,  -80.0),
+    (-108.69,  -65.0),
+    (-108.69,  -50.0),
+    (-108.69,  -35.0),
+    (-108.69,  -20.0),
+    (-108.69,   -5.0),
+    # North straight (going east)
+    ( -55.0,    7.19),
     ( -45.0,    7.19),
+    ( -35.0,    7.19),
     ( -25.0,    7.19),
+    ( -15.0,    7.19),
+    # East straight (going south)
+    (   7.19,  -10.0),
     (   7.19,  -20.0),
     (   7.19,  -30.0),
-    ( -61.19, -85.0),
-    ( -61.19,-105.0),
-    ( -61.19,-120.0),
+    (   7.19,  -38.0),
+    # South straight (going south)
+    ( -61.19,  -70.0),
+    ( -61.19,  -82.0),
+    ( -61.19,  -95.0),
+    ( -61.19, -108.0),
+    ( -61.19, -120.0),
+    ( -61.19, -132.0),
 ]
 
 # Default (fixed) barrel positions — used for the "fixed obstacles" experiment.

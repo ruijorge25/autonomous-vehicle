@@ -65,6 +65,7 @@ def main():
         supervisor            = supervisor,
         reward_fn             = CONFIG["reward_fn"],
         procedural_obstacles  = CONFIG["procedural_obstacles"],
+        run_name              = RUN_NAME,
     )
 
     # ── Choose algorithm ──────────────────────────────────────────────────
