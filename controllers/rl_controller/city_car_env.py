@@ -73,12 +73,15 @@ NUM_BARRELS        = 14
 # z=0.332 (road surface height, confirmed from Webots).
 BARREL_COLLISION_M = 1.5   # geometric barrel collision radius (barrel r=0.4 + car half-width ~1.0 + margin)
 
+# Spawn poses — only on the LONG STRAIGHT segments (roads 1, 3, 5, 7 of the X5 circuit).
+# Kept away from both intersections (-45,45) and (45,-45) by >30 m
+# so a traffic car can never be at the spawn point on episode start.
 SPAWN_POSES = [
-    (-105.0, -50.0, 0.332,  math.pi / 2),   # west straight, heading north
-    (-105.0, -20.0, 0.332,  math.pi / 2),   # west straight, heading north
-    ( -50.0,  45.0, 0.332,  0.0),            # north straight, heading east (shifted from -35 to avoid barrel)
-    (  45.0, -35.0, 0.332, -math.pi / 2),   # east straight, heading south
-    ( -30.0,-105.0, 0.332,  math.pi),        # south straight, heading west
+    (-105.0, -50.0, 0.332,  math.pi / 2),   # road 1: west straight, low section
+    (-105.0, -25.0, 0.332,  math.pi / 2),   # road 1: west straight, mid section
+    ( -30.0,-105.0, 0.332,  math.pi),        # road 3: south straight, mid section
+    ( -55.0,-105.0, 0.332,  math.pi),        # road 3: south straight, east section
+    (  45.0, -55.0, 0.332, -math.pi / 2),   # road 5: east straight, low section
 ]
 
 
@@ -419,6 +422,14 @@ class CityCarEnv(gym.Env):
             node.getField("translation").setSFVec3f([x, y, 0.77])
             node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, heading])
 
+    def _traffic_positions(self):
+        """Return current (x, y) of each traffic car based on internal progress state."""
+        return [
+            self._circuit_position(self._traffic_progress[i])[:2]
+            for i in range(NUM_TRAFFIC_CARS)
+            if self.traffic_nodes[i] is not None
+        ]
+
     def _advance_waypoint(self, x, y):
         """Move wp_index forward if the vehicle has reached the current target."""
         wx, wy, _ = WAYPOINTS[self.wp_index]
@@ -578,7 +589,12 @@ class CityCarEnv(gym.Env):
             math.hypot(x - bx, y - by) < BARREL_COLLISION_M
             for bx, by in self._barrel_positions
         )
-        collision   = lidar_collision or barrel_collision
+        # Geometric traffic-car collision (3.5 m = half car length + half X5 length + margin)
+        traffic_collision = any(
+            math.hypot(x - tx, y - ty) < 3.5
+            for tx, ty in self._traffic_positions()
+        )
+        collision   = lidar_collision or barrel_collision or traffic_collision
         out_of_lane = abs(lateral) > LANE_LIMIT_M
         # Success: completed a full loop (wp_index wrapped around at least once)
         # Simple proxy: total_progress > circuit perimeter (~500 m)
