@@ -110,29 +110,40 @@ def main():
     AlgoClass = PPO if CONFIG["algorithm"] == "ppo" else SAC
     policy_kwargs = dict(net_arch=[256, 256])
 
-    model = AlgoClass(
-        policy          = "MlpPolicy",
-        env             = env,  # Pass the stacked environment here
-        verbose         = 1,
-        tensorboard_log = LOG_DIR,
-        policy_kwargs   = policy_kwargs,
-        
-        **(dict(
-            n_steps          = 2048,
-            batch_size       = 256,  # INCREASED from 64
-            n_epochs         = 10,
-            learning_rate    = 3e-4,
-            clip_range       = 0.2,
-            ent_coef         = 0.01,
-        ) if CONFIG["algorithm"] == "ppo" else dict(
-            learning_rate    = 3e-4,
-            batch_size       = 256,
-            buffer_size      = 100_000,
-            learning_starts  = 1000,
-            tau              = 0.005,
-            ent_coef         = "auto",
-        )),
+    ppo_kwargs = dict(
+        n_steps       = 2048,
+        batch_size    = 256,
+        n_epochs      = 10,
+        learning_rate = 3e-4,
+        clip_range    = 0.2,
+        ent_coef      = 0.01,
+    ) if CONFIG["algorithm"] == "ppo" else dict(
+        learning_rate   = 3e-4,
+        batch_size      = 256,
+        buffer_size     = 100_000,
+        learning_starts = 1000,
+        tau             = 0.005,
+        ent_coef        = "auto",
     )
+
+    best_model_path = os.path.join(MODEL_DIR, f"{RUN_NAME}_best.zip")
+    if os.path.exists(best_model_path):
+        print(f"[rl_controller] Loading existing model: {best_model_path}")
+        model = AlgoClass.load(
+            best_model_path,
+            env             = env,
+            tensorboard_log = LOG_DIR,
+        )
+    else:
+        print(f"[rl_controller] No existing model found — starting from scratch.")
+        model = AlgoClass(
+            policy          = "MlpPolicy",
+            env             = env,
+            verbose         = 1,
+            tensorboard_log = LOG_DIR,
+            policy_kwargs   = policy_kwargs,
+            **ppo_kwargs,
+        )
 
     # ── Checkpoint callback ───────────────────────────────────────────────
     checkpoint_cb = CheckpointCallback(
