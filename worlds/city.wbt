@@ -1628,7 +1628,7 @@ Crossroad {
   ]
 }
 DEF TRAFFIC_CAR_0 Solid {
-  translation -45.0 32.0 0.4
+  translation -45.0 64.5 0.77
   rotation 0 0 1 -1.5708
   name "traffic_car_0"
   children [
@@ -1648,8 +1648,8 @@ DEF TRAFFIC_CAR_0 Solid {
   }
 }
 DEF TRAFFIC_CAR_1 Solid {
-  translation -4.5 -45.0 0.4
-  rotation 0 0 1 0
+  translation -45.0 -4.5 0.77
+  rotation 0 0 1 -1.5708
   name "traffic_car_1"
   children [
     Shape {
@@ -1668,8 +1668,8 @@ DEF TRAFFIC_CAR_1 Solid {
   }
 }
 DEF TRAFFIC_CAR_2 Solid {
-  translation 105.0 -4.5 0.4
-  rotation 0 0 1 1.5708
+  translation -4.5 -45.0 0.77
+  rotation 0 0 1 0
   name "traffic_car_2"
   children [
     Shape {
@@ -1688,8 +1688,8 @@ DEF TRAFFIC_CAR_2 Solid {
   }
 }
 DEF TRAFFIC_CAR_3 Solid {
-  translation 64.5 105.0 0.4
-  rotation 0 0 1 3.14159
+  translation 64.5 -45.0 0.77
+  rotation 0 0 1 0
   name "traffic_car_3"
   children [
     Shape {
@@ -1708,8 +1708,8 @@ DEF TRAFFIC_CAR_3 Solid {
   }
 }
 DEF TRAFFIC_CAR_4 Solid {
-  translation -4.5 64.5 0.4
-  rotation 0 0 1 -1.5708
+  translation 105.0 64.5 0.77
+  rotation 0 0 1 1.5708
   name "traffic_car_4"
   children [
     Shape {
@@ -1728,8 +1728,8 @@ DEF TRAFFIC_CAR_4 Solid {
   }
 }
 DEF TRAFFIC_CAR_5 Solid {
-  translation 90.0 75.0 0.4
-  rotation 0 0 1 2.356
+  translation 30.0 105.0 0.77
+  rotation 0 0 1 3.1416
   name "traffic_car_5"
   children [
     Shape {

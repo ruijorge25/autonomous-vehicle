@@ -109,51 +109,52 @@ BARREL_FIXED_POSITIONS = [
 
 # ── Secondary circuit (roads 8–15) — where traffic cars circulate ────────────
 #
-# Geometry (from city.wbt road translations):
-#   road 8:  straight centre (-45,  25.5)  – going south at x=-45
-#   road 9:  curve   centre (-4.5,  -4.5)  R=40.5  NW→SW corner
-#   road 10: straight centre (-4.5, -45)   – going east  at y=-45
-#   road 11: curve   centre (64.5,  -4.5)  R=40.5  SW→SE corner
-#   road 12: straight centre (105,   -4.5) – going north at x=105
-#   road 13: curve   centre (64.5,  64.5)  R=40.5  SE→NE corner
-#   road 14: straight centre (64.5, 105)   – going west  at y=105
-#   road 15: curve   centre (-4.5,  64.5)  R=40.5  NE→NW corner
+# Exact geometry (from city.wbt CurvedRoadSegment translations = arc centres):
+#   Curve  9: centre (-4.5,  -4.5) R=40.5   connects x=-45 vertical to y=-45 horizontal
+#   Curve 11: centre (64.5,  -4.5) R=40.5   connects y=-45 horizontal to x=105 vertical
+#   Curve 13: centre (64.5,  64.5) R=40.5   connects x=105 vertical to y=105 horizontal
+#   Curve 15: centre (-4.5,  64.5) R=40.5   connects y=105 horizontal to x=-45 vertical
 #
-# The circuit passes through the two intersections at (-45,45) and (45,-45)
-# where it crosses the X5's circuit — creating cross-traffic situations.
+# Tangent points on arcs (each at a cardinal angle, radius=40.5 from centre):
+#   Curve  9: entry (-45, -4.5) @ 180°  →  exit (-4.5, -45) @ 270°
+#   Curve 11: entry (64.5,-45)  @ 270°  →  exit (105, -4.5)  @   0°
+#   Curve 13: entry (105, 64.5) @   0°  →  exit (64.5, 105)  @  90°
+#   Curve 15: entry (-4.5,105)  @  90°  →  exit (-45,  64.5) @ 180°
 #
-# Direction: counter-clockwise (so traffic crosses the X5 perpendicularly).
+# The two RoadIntersections the circuit crosses:
+#   Intersection 17 at (-45,  45): X5 goes east here, traffic goes south
+#   Intersection 16 at ( 45, -45): X5 goes south here, traffic goes east
+#
+# Circuit direction: clockwise from above (south → east → north → west).
 #
 TRAFFIC_WAYPOINTS = [
-    # ── Road 8: heading south at x=-45 ──────────────────────────────────
-    (-45.0,  32.0),   # T0  just below NW intersection (-45,45)
-    (-45.0,  12.0),   # T1  lower end of road 8
-    (-45.0,  -4.5),   # T2  entering inner curve 9
-    # ── Curve 9: centre (-4.5,-4.5) R=40.5, going SW→SE ────────────────
-    (-30.0, -20.0),   # T3  curve midpoint A
-    (-15.0, -33.0),   # T4  curve midpoint B
-    ( -4.5, -45.0),   # T5  exiting curve → road 10
-    # ── Road 10: heading east at y=-45 ──────────────────────────────────
-    ( 15.0, -45.0),   # T6
-    ( 36.0, -45.0),   # T7  approaching SE intersection (45,-45)
-    # ── Curve 11: centre (64.5,-4.5) R=40.5, going SE→NE ───────────────
-    ( 65.0, -45.0),   # T8  entering outer right curve
-    ( 95.0, -22.0),   # T9  curve midpoint
-    (105.0,  -4.5),   # T10 road 12 south end (going north)
-    # ── Road 12: heading north at x=105 ─────────────────────────────────
-    (105.0,  20.0),   # T11
-    (105.0,  45.0),   # T12 upper portion
-    # ── Curve 13: centre (64.5,64.5) R=40.5, going NE→NW ───────────────
-    ( 90.0,  75.0),   # T13 curve midpoint
-    # ── Road 14: heading west at y=105 ──────────────────────────────────
-    ( 64.5, 105.0),   # T14 road 14 east
-    ( 35.0, 105.0),   # T15 road 14 midpoint
-    (  5.0, 105.0),   # T16 road 14 west end
-    # ── Curve 15: centre (-4.5,64.5) R=40.5, going NW→SW ───────────────
-    (-15.0,  85.0),   # T17 curve midpoint
-    ( -4.5,  64.5),   # T18 exiting curve
-    # ── Approaching NW intersection from east ────────────────────────────
-    (-25.0,  45.0),   # T19 approaching intersection (-45,45)
+    # ── x=-45, heading SOUTH (from curve-15 tangent through intersection 17) ──
+    (-45.0,  64.5),   # T0:  curve 15 exit, tangent @ 180°
+    (-45.0,  45.0),   # T1:  intersection 17 ← X5 crosses here going east
+    (-45.0,  15.0),   # T2:  middle of road 8
+    (-45.0,  -4.5),   # T3:  curve 9 entry, tangent @ 180°
+    # ── Curve 9: centre (-4.5,-4.5), R=40.5, arc 180°→270° (clockwise) ────────
+    (-33.1, -33.1),   # T4:  225° midpoint  (-4.5 + 40.5·cos225°, -4.5 + 40.5·sin225°)
+    ( -4.5, -45.0),   # T5:  270° = curve 9 exit, tangent
+    # ── y=-45, heading EAST (from curve-9 tangent through intersection 16) ─────
+    ( 15.0, -45.0),   # T6:  middle section
+    ( 45.0, -45.0),   # T7:  intersection 16 ← X5 crosses here going south
+    ( 64.5, -45.0),   # T8:  curve 11 entry, tangent @ 270°
+    # ── Curve 11: centre (64.5,-4.5), R=40.5, arc 270°→360° (clockwise) ───────
+    ( 93.1, -33.1),   # T9:  315° midpoint  (64.5 + 40.5·cos315°, -4.5 + 40.5·sin315°)
+    (105.0,  -4.5),   # T10: 0° = curve 11 exit, tangent / road 12 south start
+    # ── x=105, heading NORTH ─────────────────────────────────────────────────────
+    (105.0,  30.0),   # T11: midpoint road 12
+    (105.0,  64.5),   # T12: curve 13 entry, tangent @ 0°
+    # ── Curve 13: centre (64.5,64.5), R=40.5, arc 0°→90° (clockwise) ───────────
+    ( 93.1,  93.1),   # T13: 45° midpoint  (64.5 + 40.5·cos45°, 64.5 + 40.5·sin45°)
+    ( 64.5, 105.0),   # T14: 90° = curve 13 exit / road 14 east start
+    # ── y=105, heading WEST ───────────────────────────────────────────────────────
+    ( 30.0, 105.0),   # T15: midpoint road 14
+    ( -4.5, 105.0),   # T16: curve 15 entry, tangent @ 90°
+    # ── Curve 15: centre (-4.5,64.5), R=40.5, arc 90°→180° (clockwise) ─────────
+    (-33.1,  93.1),   # T17: 135° midpoint  (-4.5 + 40.5·cos135°, 64.5 + 40.5·sin135°)
+    # → wraps back to T0 = (-45.0, 64.5) @ 180°
 ]
 
 TRAFFIC_SPEED_MS = 8.0   # m/s  ≈ 29 km/h

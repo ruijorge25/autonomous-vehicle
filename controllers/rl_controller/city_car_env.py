@@ -403,7 +403,7 @@ class CityCarEnv(gym.Env):
             self._traffic_progress[i] = i * circuit_len / n
             if self.traffic_nodes[i] is not None:
                 x, y, heading = self._circuit_position(self._traffic_progress[i])
-                self.traffic_nodes[i].getField("translation").setSFVec3f([x, y, 0.4])
+                self.traffic_nodes[i].getField("translation").setSFVec3f([x, y, 0.77])
                 self.traffic_nodes[i].getField("rotation").setSFRotation([0.0, 0.0, 1.0, heading])
 
     def _update_traffic(self):
@@ -416,7 +416,7 @@ class CityCarEnv(gym.Env):
                 self._traffic_progress[i] + TRAFFIC_SPEED_MS * dt
             ) % self._traffic_circuit_length
             x, y, heading = self._circuit_position(self._traffic_progress[i])
-            node.getField("translation").setSFVec3f([x, y, 0.4])
+            node.getField("translation").setSFVec3f([x, y, 0.77])
             node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, heading])
 
     def _advance_waypoint(self, x, y):
