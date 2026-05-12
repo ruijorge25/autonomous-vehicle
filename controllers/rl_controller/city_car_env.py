@@ -51,8 +51,8 @@ COLLISION_DIST_M   = 0.3    # metres — episode ends if LiDAR reads below this
 LANE_LIMIT_M       = 9.0    # metres — triggers ~1.75 m before the physical barrier (road half-width=10.75m)
 FRAME_SKIP         = 5      # simulate N physics steps per RL step (160 ms per step @ 32 ms)
 MAX_STEPS          = 5000   # RL steps per episode (800 s); generous enough for a full lap
-STUCK_SPEED_MS     = 0.3    # m/s — below this the car is considered stuck
-STUCK_STEPS        = 15     # consecutive steps below STUCK_SPEED_MS → terminate (2.4 s)
+STUCK_SPEED_MS     = 0.1    # m/s — below this the car is considered stuck
+STUCK_STEPS        = 40     # consecutive steps below STUCK_SPEED_MS → terminate (2.4 s)
 LIDAR_MAX_M        = 30.0   # normalisation range — SICK LMS 291 in Webots has 30 m max range
 SPEED_MAX          = 20.0   # normalisation range for speed
 STEERING_RANGE     = 0.5    # rad — maps action [-1,1] to [-0.5, 0.5] rad
@@ -231,6 +231,7 @@ class CityCarEnv(gym.Env):
         self._ep_out_lane    = False
         self._ep_success     = False
         self._stuck_counter  = 0
+        self._wp_visited     = 0
 
         obs = self._get_obs()
         return obs, {}
@@ -342,8 +343,15 @@ class CityCarEnv(gym.Env):
         wx, wy, _ = WAYPOINTS[self.wp_index]
         if math.hypot(x - wx, y - wy) < WAYPOINT_REACH_M:
             next_idx = (self.wp_index + 1) % len(WAYPOINTS)
-            if next_idx == 0:  # wp_index wrapped — full lap completed
+            
+            # Conta mais um waypoint visitado nesta vida
+            self._wp_visited += 1
+            
+            # Só regista uma volta completa se passar efetivamente pelos 8 pontos
+            if self._wp_visited >= len(WAYPOINTS):
                 self._wp_laps += 1
+                self._wp_visited = 0  # Faz reset para a próxima volta
+                
             self.wp_index = next_idx
 
     def _compute_lateral_and_heading(self, x, y, vehicle_heading):
