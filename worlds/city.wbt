@@ -1627,6 +1627,127 @@ Crossroad {
     "5"
   ]
 }
+DEF TRAFFIC_CAR_0 Solid {
+  translation -45.0 32.0 0.4
+  rotation 0 0 1 -1.5708
+  name "traffic_car_0"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.1 0.1
+        roughness 0.8
+        metalness 0
+      }
+      geometry Box {
+        size 4.5 2.0 1.5
+      }
+    }
+  ]
+  boundingObject Box {
+    size 4.5 2.0 1.5
+  }
+}
+DEF TRAFFIC_CAR_1 Solid {
+  translation -4.5 -45.0 0.4
+  rotation 0 0 1 0
+  name "traffic_car_1"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.1 0.1
+        roughness 0.8
+        metalness 0
+      }
+      geometry Box {
+        size 4.5 2.0 1.5
+      }
+    }
+  ]
+  boundingObject Box {
+    size 4.5 2.0 1.5
+  }
+}
+DEF TRAFFIC_CAR_2 Solid {
+  translation 105.0 -4.5 0.4
+  rotation 0 0 1 1.5708
+  name "traffic_car_2"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.1 0.1
+        roughness 0.8
+        metalness 0
+      }
+      geometry Box {
+        size 4.5 2.0 1.5
+      }
+    }
+  ]
+  boundingObject Box {
+    size 4.5 2.0 1.5
+  }
+}
+DEF TRAFFIC_CAR_3 Solid {
+  translation 64.5 105.0 0.4
+  rotation 0 0 1 3.14159
+  name "traffic_car_3"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.1 0.1
+        roughness 0.8
+        metalness 0
+      }
+      geometry Box {
+        size 4.5 2.0 1.5
+      }
+    }
+  ]
+  boundingObject Box {
+    size 4.5 2.0 1.5
+  }
+}
+DEF TRAFFIC_CAR_4 Solid {
+  translation -4.5 64.5 0.4
+  rotation 0 0 1 -1.5708
+  name "traffic_car_4"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.1 0.1
+        roughness 0.8
+        metalness 0
+      }
+      geometry Box {
+        size 4.5 2.0 1.5
+      }
+    }
+  ]
+  boundingObject Box {
+    size 4.5 2.0 1.5
+  }
+}
+DEF TRAFFIC_CAR_5 Solid {
+  translation 90.0 75.0 0.4
+  rotation 0 0 1 2.356
+  name "traffic_car_5"
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.9 0.1 0.1
+        roughness 0.8
+        metalness 0
+      }
+      geometry Box {
+        size 4.5 2.0 1.5
+      }
+    }
+  ]
+  boundingObject Box {
+    size 4.5 2.0 1.5
+  }
+}
+
 Crossroad {
   translation 4.4998512 45.00011 0
   name "crossroad(11)"

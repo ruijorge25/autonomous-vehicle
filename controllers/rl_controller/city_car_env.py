@@ -37,7 +37,10 @@ import gymnasium as gym
 from gymnasium import spaces
 
 from reward import RewardInfo, dense_reward, sparse_reward
-from waypoints import WAYPOINTS, BARREL_FIXED_POSITIONS, BARREL_SPAWN_CANDIDATES
+from waypoints import (
+    WAYPOINTS, BARREL_FIXED_POSITIONS, BARREL_SPAWN_CANDIDATES,
+    TRAFFIC_WAYPOINTS, TRAFFIC_SPEED_MS, NUM_TRAFFIC_CARS,
+)
 
 # Logger lives in utils/ — add it to path
 _UTILS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "utils")
@@ -173,6 +176,11 @@ class CityCarEnv(gym.Env):
         self.vehicle_node = sv.getFromDef("VEHICLE")
         self.barrel_nodes = [sv.getFromDef(f"BARREL_{i}") for i in range(NUM_BARRELS)]
 
+        # Traffic car nodes (kinematically controlled by supervisor)
+        self.traffic_nodes = [sv.getFromDef(f"TRAFFIC_CAR_{i}") for i in range(NUM_TRAFFIC_CARS)]
+        self._traffic_progress = [0.0] * NUM_TRAFFIC_CARS
+        self._traffic_circuit_length = self._compute_traffic_circuit_length()
+
         # GPS history for speed estimation
         self._prev_gps = None
 
@@ -204,6 +212,9 @@ class CityCarEnv(gym.Env):
 
         # Position barrels
         self._reset_barrels()
+
+        # Space traffic cars evenly around secondary circuit
+        self._reset_traffic()
 
         # Stop wheels
         self._apply_action(0.0, 0.0)
@@ -243,6 +254,7 @@ class CityCarEnv(gym.Env):
         self._apply_action(steering, throttle)
         for _ in range(FRAME_SKIP):
             self.supervisor.step(self.timestep)
+        self._update_traffic()
         self.step_count += 1
 
         obs  = self._get_obs()
@@ -352,6 +364,60 @@ class CityCarEnv(gym.Env):
             if d < best_d:
                 best_d, best_i = d, i
         return best_i
+
+    # ── Traffic car helpers ───────────────────────────────────────────────────
+
+    def _compute_traffic_circuit_length(self):
+        """Total length in metres of the TRAFFIC_WAYPOINTS circuit."""
+        total = 0.0
+        n = len(TRAFFIC_WAYPOINTS)
+        for i in range(n):
+            p1 = TRAFFIC_WAYPOINTS[i]
+            p2 = TRAFFIC_WAYPOINTS[(i + 1) % n]
+            total += math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+        return total
+
+    def _circuit_position(self, progress_m):
+        """Return (x, y, heading_rad) at *progress_m* along TRAFFIC_WAYPOINTS."""
+        remaining = progress_m % self._traffic_circuit_length
+        n = len(TRAFFIC_WAYPOINTS)
+        for i in range(n):
+            p1 = TRAFFIC_WAYPOINTS[i]
+            p2 = TRAFFIC_WAYPOINTS[(i + 1) % n]
+            seg_len = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+            if remaining <= seg_len or i == n - 1:
+                t = min(remaining / max(seg_len, 1e-6), 1.0)
+                x = p1[0] + t * (p2[0] - p1[0])
+                y = p1[1] + t * (p2[1] - p1[1])
+                heading = math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+                return x, y, heading
+            remaining -= seg_len
+        p = TRAFFIC_WAYPOINTS[0]
+        return p[0], p[1], 0.0
+
+    def _reset_traffic(self):
+        """Evenly space all traffic cars around the secondary circuit."""
+        n = NUM_TRAFFIC_CARS
+        circuit_len = self._traffic_circuit_length
+        for i in range(n):
+            self._traffic_progress[i] = i * circuit_len / n
+            if self.traffic_nodes[i] is not None:
+                x, y, heading = self._circuit_position(self._traffic_progress[i])
+                self.traffic_nodes[i].getField("translation").setSFVec3f([x, y, 0.4])
+                self.traffic_nodes[i].getField("rotation").setSFRotation([0.0, 0.0, 1.0, heading])
+
+    def _update_traffic(self):
+        """Advance each traffic car kinematically along the secondary circuit."""
+        dt = self.timestep * FRAME_SKIP / 1000.0   # seconds per RL step
+        for i, node in enumerate(self.traffic_nodes):
+            if node is None:
+                continue
+            self._traffic_progress[i] = (
+                self._traffic_progress[i] + TRAFFIC_SPEED_MS * dt
+            ) % self._traffic_circuit_length
+            x, y, heading = self._circuit_position(self._traffic_progress[i])
+            node.getField("translation").setSFVec3f([x, y, 0.4])
+            node.getField("rotation").setSFRotation([0.0, 0.0, 1.0, heading])
 
     def _advance_waypoint(self, x, y):
         """Move wp_index forward if the vehicle has reached the current target."""

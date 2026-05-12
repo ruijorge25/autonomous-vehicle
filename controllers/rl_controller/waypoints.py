@@ -106,3 +106,55 @@ BARREL_FIXED_POSITIONS = [
     (  30.0, -89.0, 0.6),   # B12: SE curve inside apex
     ( -89.0, -89.0, 0.6),   # B13: SW curve inside apex
 ]
+
+# ── Secondary circuit (roads 8–15) — where traffic cars circulate ────────────
+#
+# Geometry (from city.wbt road translations):
+#   road 8:  straight centre (-45,  25.5)  – going south at x=-45
+#   road 9:  curve   centre (-4.5,  -4.5)  R=40.5  NW→SW corner
+#   road 10: straight centre (-4.5, -45)   – going east  at y=-45
+#   road 11: curve   centre (64.5,  -4.5)  R=40.5  SW→SE corner
+#   road 12: straight centre (105,   -4.5) – going north at x=105
+#   road 13: curve   centre (64.5,  64.5)  R=40.5  SE→NE corner
+#   road 14: straight centre (64.5, 105)   – going west  at y=105
+#   road 15: curve   centre (-4.5,  64.5)  R=40.5  NE→NW corner
+#
+# The circuit passes through the two intersections at (-45,45) and (45,-45)
+# where it crosses the X5's circuit — creating cross-traffic situations.
+#
+# Direction: counter-clockwise (so traffic crosses the X5 perpendicularly).
+#
+TRAFFIC_WAYPOINTS = [
+    # ── Road 8: heading south at x=-45 ──────────────────────────────────
+    (-45.0,  32.0),   # T0  just below NW intersection (-45,45)
+    (-45.0,  12.0),   # T1  lower end of road 8
+    (-45.0,  -4.5),   # T2  entering inner curve 9
+    # ── Curve 9: centre (-4.5,-4.5) R=40.5, going SW→SE ────────────────
+    (-30.0, -20.0),   # T3  curve midpoint A
+    (-15.0, -33.0),   # T4  curve midpoint B
+    ( -4.5, -45.0),   # T5  exiting curve → road 10
+    # ── Road 10: heading east at y=-45 ──────────────────────────────────
+    ( 15.0, -45.0),   # T6
+    ( 36.0, -45.0),   # T7  approaching SE intersection (45,-45)
+    # ── Curve 11: centre (64.5,-4.5) R=40.5, going SE→NE ───────────────
+    ( 65.0, -45.0),   # T8  entering outer right curve
+    ( 95.0, -22.0),   # T9  curve midpoint
+    (105.0,  -4.5),   # T10 road 12 south end (going north)
+    # ── Road 12: heading north at x=105 ─────────────────────────────────
+    (105.0,  20.0),   # T11
+    (105.0,  45.0),   # T12 upper portion
+    # ── Curve 13: centre (64.5,64.5) R=40.5, going NE→NW ───────────────
+    ( 90.0,  75.0),   # T13 curve midpoint
+    # ── Road 14: heading west at y=105 ──────────────────────────────────
+    ( 64.5, 105.0),   # T14 road 14 east
+    ( 35.0, 105.0),   # T15 road 14 midpoint
+    (  5.0, 105.0),   # T16 road 14 west end
+    # ── Curve 15: centre (-4.5,64.5) R=40.5, going NW→SW ───────────────
+    (-15.0,  85.0),   # T17 curve midpoint
+    ( -4.5,  64.5),   # T18 exiting curve
+    # ── Approaching NW intersection from east ────────────────────────────
+    (-25.0,  45.0),   # T19 approaching intersection (-45,45)
+]
+
+TRAFFIC_SPEED_MS = 8.0   # m/s  ≈ 29 km/h
+NUM_TRAFFIC_CARS = 6
