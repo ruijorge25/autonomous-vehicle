@@ -29,6 +29,7 @@ from controller import Supervisor
 from stable_baselines3 import PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
+from stable_baselines3.common.monitor import Monitor
 
 # ── Project modules ───────────────────────────────────────────────────────────
 from city_car_env import CityCarEnv
@@ -37,10 +38,10 @@ from city_car_env import CityCarEnv
 # EXPERIMENT CONFIGURATION — change these to switch experiments
 # ─────────────────────────────────────────────────────────────────────────────
 CONFIG = {
-    "reward_fn":             "dense",   # "dense" or "sparse"
+    "reward_fn":             "sparse",   # "dense" or "sparse"
     "algorithm":             "ppo",     # "ppo"   or "sac"
     "procedural_obstacles":  False,     # False = fixed, True = procedural
-    "total_timesteps":       200_000,
+    "total_timesteps":       400_000,
     "save_freq":             10_000,    # checkpoint every N steps
 }
 
@@ -102,8 +103,9 @@ def main():
         run_name              = RUN_NAME,
     )
 
-    # Wrap the environment to stack the last 4 frames
-    vec_env = DummyVecEnv([lambda: base_env])
+    # Monitor wraps the env so SB3 fills info["episode"] — needed by BestModelCallback
+    monitored_env = Monitor(base_env)
+    vec_env = DummyVecEnv([lambda: monitored_env])
     env = VecFrameStack(vec_env, n_stack=4)
 
     # Choose algorithm
