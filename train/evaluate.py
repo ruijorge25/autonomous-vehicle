@@ -20,6 +20,7 @@ if CONTROLLER_DIR not in sys.path:
 
 from controller import Supervisor
 from stable_baselines3 import PPO, SAC
+from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from city_car_env import CityCarEnv
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -41,35 +42,41 @@ os.makedirs(LOG_DIR, exist_ok=True)
 def main():
     supervisor = Supervisor()
 
-    env = CityCarEnv(
+    base_env = CityCarEnv(
         supervisor           = supervisor,
         reward_fn            = CONFIG["reward_fn"],
         procedural_obstacles = CONFIG["procedural_obstacles"],
         run_name             = CONFIG["run_name"],
     )
 
+    # MUST match the training wrapper!
+    vec_env = DummyVecEnv([lambda: base_env])
+    env = VecFrameStack(vec_env, n_stack=4)
+
     AlgoClass = PPO if CONFIG["algorithm"] == "ppo" else SAC
     model = AlgoClass.load(CONFIG["model_path"], env=env)
 
     results = []
     for ep in range(CONFIG["n_episodes"]):
-        obs, _ = env.reset()
+        obs = env.reset() # Note: VecEnv reset() returns just the obs, not (obs, info)
+        
         ep_reward   = 0.0
         ep_steps    = 0
-        success     = False
-        collision   = False
         terminated  = False
-        truncated   = False
-
-        while not (terminated or truncated):
+        
+        # DummyVecEnv handles the done flags differently, it returns arrays
+        while True:
             action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, _ = env.step(action)
-            ep_reward += reward
+            obs, rewards, dones, infos = env.step(action)
+            ep_reward += rewards[0]
             ep_steps  += 1
 
-        # Read terminal flags from the env accumulators
-        success   = env._ep_success
-        collision = env._ep_collision
+            if dones[0]:
+                break
+
+        # Read terminal flags from the underlying base env
+        success   = base_env._ep_success
+        collision = base_env._ep_collision
 
         results.append({
             "episode":      ep + 1,

@@ -310,23 +310,38 @@ class CityCarEnv(gym.Env):
         self.right_wheel.setVelocity(vel)
 
     def _get_lidar_frontal(self):
-        """Return N_LIDAR_RAYS values from the central frontal sector."""
+        """Return N_LIDAR_RAYS values from the central frontal sector using min-pooling."""
         values = self.lidar.getRangeImage()
         if not values:
             return [LIDAR_MAX_M] * N_LIDAR_RAYS
+        
         n = len(values)
-        centre = n // 2
-        half   = N_LIDAR_RAYS // 2
-        # pick rays symmetrically around the centre
-        step = max(1, (n // 4) // half)
-        indices = [centre + (i - half) * step for i in range(N_LIDAR_RAYS)]
+        
+        # Focus on the frontal region (e.g., middle half of the 180-degree field of view)
+        front_rays = n // 2 
+        start_idx = (n - front_rays) // 2
+        end_idx = start_idx + front_rays
+        
+        frontal_values = values[start_idx:end_idx]
+        
+        # Clean up NaNs and infinities
+        cleaned_values = [
+            min(v, LIDAR_MAX_M) if v != float("inf") and not math.isnan(v) else LIDAR_MAX_M 
+            for v in frontal_values
+        ]
+        
+        # Divide into sectors and take the minimum (closest object) per sector
+        sector_size = max(1, len(cleaned_values) // N_LIDAR_RAYS)
         rays = []
-        for idx in indices:
-            idx = max(0, min(n - 1, idx))
-            v = values[idx]
-            if v == float("inf") or math.isnan(v):
-                v = LIDAR_MAX_M
-            rays.append(min(v, LIDAR_MAX_M))
+        
+        for i in range(N_LIDAR_RAYS):
+            sector_start = i * sector_size
+            # Ensure the last sector catches any remainder
+            sector_end = (i + 1) * sector_size if i < N_LIDAR_RAYS - 1 else len(cleaned_values)
+            
+            sector_min = min(cleaned_values[sector_start:sector_end])
+            rays.append(sector_min)
+            
         return rays
 
     def _nearest_waypoint_index(self, x, y):

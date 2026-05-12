@@ -27,6 +27,7 @@ from controller import Supervisor
 
 # ── Stable-Baselines3 ─────────────────────────────────────────────────────────
 from stable_baselines3 import PPO, SAC
+from stable_baselines3.common.vec_env import DummyVecEnv, VecFrameStack
 from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 
 # ── Project modules ───────────────────────────────────────────────────────────
@@ -94,28 +95,31 @@ class BestModelCallback(BaseCallback):
 def main():
     supervisor = Supervisor()
 
-    env = CityCarEnv(
+    base_env = CityCarEnv(
         supervisor            = supervisor,
         reward_fn             = CONFIG["reward_fn"],
         procedural_obstacles  = CONFIG["procedural_obstacles"],
         run_name              = RUN_NAME,
     )
 
-    # ── Choose algorithm ──────────────────────────────────────────────────
-    AlgoClass = PPO if CONFIG["algorithm"] == "ppo" else SAC
+    # Wrap the environment to stack the last 4 frames
+    vec_env = DummyVecEnv([lambda: base_env])
+    env = VecFrameStack(vec_env, n_stack=4)
 
+    # Choose algorithm
+    AlgoClass = PPO if CONFIG["algorithm"] == "ppo" else SAC
     policy_kwargs = dict(net_arch=[256, 256])
 
     model = AlgoClass(
-        policy        = "MlpPolicy",
-        env           = env,
-        verbose       = 1,
+        policy          = "MlpPolicy",
+        env             = env,  # Pass the stacked environment here
+        verbose         = 1,
         tensorboard_log = LOG_DIR,
-        policy_kwargs = policy_kwargs,
-        # PPO-specific defaults that work well for continuous control
+        policy_kwargs   = policy_kwargs,
+        
         **(dict(
             n_steps          = 2048,
-            batch_size       = 64,
+            batch_size       = 256,  # INCREASED from 64
             n_epochs         = 10,
             learning_rate    = 3e-4,
             clip_range       = 0.2,

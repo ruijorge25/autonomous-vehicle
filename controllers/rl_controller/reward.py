@@ -32,19 +32,19 @@ class RewardInfo:
 
 
 # ── Weights (tune these during experiments) ──────────────────────────────────
-W_PROGRESS    =  1.0
-W_HEADING     =  1.5   # increased: agent must align with road on curves
-W_LATERAL     =  0.5   # increased: discourage drifting off centre
 W_PROGRESS    =  1.0   # metres advanced per step (primary driving signal)
 W_HEADING     =  1.5   # alignment with road direction (cos curve, critical on bends)
 W_LATERAL     =  1.2   # normalized deviation from yellow centre line
 W_OBSTACLE    =  2.0   # proximity penalty — large weight, early threshold
 W_SMOOTH      =  0.05  # small: don't over-constrain detour manoeuvres
-OBSTACLE_THRESHOLD_M = 8.0   # 8 m gives ~9 steps reaction time at 20 km/h
-LANE_LIMIT_M         = 9.0   # must match LANE_LIMIT_M in city_car_env.py
-PENALTY_COLLISION    = -100.0
-PENALTY_OUT_OF_LANE  = -100.0
-BONUS_SUCCESS        = +500.0  # big carrot — agent must want to complete the lap
+
+OBSTACLE_THRESHOLD_M = 8.0   
+LANE_LIMIT_M         = 9.0   
+
+# -- UPDATED TERMINAL REWARDS --
+PENALTY_COLLISION    = -500.0  # Increased from -100 to strongly discourage crashes
+PENALTY_OUT_OF_LANE  = -100.0  # Kept lower than collision; grass is better than a wall
+BONUS_SUCCESS        = +500.0  # Big carrot for completing the lap
 
 
 def dense_reward(info: RewardInfo) -> float:
