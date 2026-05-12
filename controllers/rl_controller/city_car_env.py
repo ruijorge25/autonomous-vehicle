@@ -73,15 +73,34 @@ NUM_BARRELS        = 14
 # z=0.332 (road surface height, confirmed from Webots).
 BARREL_COLLISION_M = 1.5   # geometric barrel collision radius (barrel r=0.4 + car half-width ~1.0 + margin)
 
-# Spawn poses — only on the LONG STRAIGHT segments (roads 1, 3, 5, 7 of the X5 circuit).
-# Kept away from both intersections (-45,45) and (45,-45) by >30 m
-# so a traffic car can never be at the spawn point on episode start.
+# Spawn poses — roads 0–7 (full X5 circuit), excluding the two intersections:
+#   Intersection 17 at (-45, 45)  — road 7 north straight, avoid x ∈ [-55,-35]
+#   Intersection 16 at ( 45,-45)  — road 5 east straight,  avoid y ∈ [-55,-35]
+# Curve midpoints: centre + R·(cos θ, sin θ)  where R=40.5 and θ is the arc midpoint.
+# Headings on curves: tangent direction for clockwise travel = θ − π/2 (rad).
 SPAWN_POSES = [
-    (-105.0, -50.0, 0.332,  math.pi / 2),   # road 1: west straight, low section
-    (-105.0, -25.0, 0.332,  math.pi / 2),   # road 1: west straight, mid section
-    ( -30.0,-105.0, 0.332,  math.pi),        # road 3: south straight, mid section
-    ( -55.0,-105.0, 0.332,  math.pi),        # road 3: south straight, east section
-    (  45.0, -55.0, 0.332, -math.pi / 2),   # road 5: east straight, low section
+    # Road 1 — west straight  (x=−105, heading north = π/2)
+    (-105.0, -50.0, 0.332,  math.pi / 2),
+    (-105.0, -25.0, 0.332,  math.pi / 2),
+    # Road 0 — NW curve midpoint  θ=135°, centre (−64.5, 4.5)
+    ( -93.1,  33.1, 0.332,  math.pi / 4),
+    # Road 7 — north straight  (y=45, heading east = 0)
+    # intersection 17 is at x=−45 — keep away
+    ( -20.0,  45.0, 0.332,  0.0),
+    (   0.0,  45.0, 0.332,  0.0),
+    # Road 6 — NE curve midpoint  θ=45°, centre (4.5, 4.5)
+    (  33.1,  33.1, 0.332, -math.pi / 4),
+    # Road 5 — east straight  (x=45, heading south = −π/2)
+    # intersection 16 is at y=−45 — keep away
+    (  45.0, -15.0, 0.332, -math.pi / 2),
+    (  45.0, -60.0, 0.332, -math.pi / 2),
+    # Road 4 — SE curve midpoint  θ=315°, centre (4.5, −64.5)
+    (  33.1, -93.1, 0.332, -3 * math.pi / 4),
+    # Road 3 — south straight  (y=−105, heading west = π)
+    ( -30.0,-105.0, 0.332,  math.pi),
+    ( -55.0,-105.0, 0.332,  math.pi),
+    # Road 2 — SW curve midpoint  θ=225°, centre (−64.5, −64.5)
+    ( -93.1, -93.1, 0.332,  3 * math.pi / 4),
 ]
 
 
